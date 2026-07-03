@@ -136,12 +136,19 @@ def main():
         print("Положите туда документы и запустите скрипт повторно.")
         return
         
-    files = [f for f in os.listdir(RAW_DATA_DIR) if os.path.isfile(os.path.join(RAW_DATA_DIR, f)) and f != ".gitkeep"]
+    # Рекурсивный поиск файлов во всех поддиректориях
+    files = []
+    for root, _, filenames in os.walk(RAW_DATA_DIR):
+        for filename in filenames:
+            # Игнорируем .gitkeep и временные файлы Office (начинающиеся с ~$)
+            if filename != ".gitkeep" and not filename.startswith("~$"):
+                files.append(os.path.join(root, filename))
+                
     if not files:
         print(f"В папке {RAW_DATA_DIR} нет файлов для обработки.")
         return
         
-    print(f"Найдено {len(files)} файлов для импорта.")
+    print(f"Найдено {len(files)} файлов для импорта (включая поддиректории).")
     
     # Инициализация клиентов баз данных
     try:
@@ -158,7 +165,7 @@ def main():
         print(f"⚠️ Не удалось автоматически очистить Neo4j: {e}")
         
     for file in files:
-        process_file(os.path.join(RAW_DATA_DIR, file))
+        process_file(file)
         
     print("\n🏁 Импорт полностью завершен!")
 
