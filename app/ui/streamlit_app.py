@@ -71,7 +71,7 @@ st.markdown("""
         border: 1px solid rgba(231, 76, 60, 0.3);
     }
     </style>
-""", unsafe_allow_digits=True, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # Инициализация состояния
 if "chat_history" not in st.session_state:
