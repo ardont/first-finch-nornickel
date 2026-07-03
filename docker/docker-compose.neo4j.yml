@@ -1,7 +1,6 @@
-version: '3.8'
 services:
   neo4j:
-    image: neo4j:5-community
+    image: dockerhub.timeweb.cloud/library/neo4j:5-community
     container_name: nornickel_neo4j
     restart: always
     ports:
