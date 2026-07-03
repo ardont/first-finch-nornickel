@@ -87,13 +87,26 @@ with st.sidebar:
     year_from = st.slider("📅 Год публикаций с:", min_value=2015, max_value=2026, value=2021)
     
     st.markdown("---")
+    st.subheader("⚙️ Настройки сети Tailscale")
+    default_api = os.getenv("BACKEND_API_URL", "http://100.71.14.9:8000")
+    backend_url = st.text_input("URL бэкенда (FastAPI):", value=default_api)
+    
     st.markdown("### 📡 Статус распределенного кластера")
     
-    # Эмуляция проверки здоровья через FastAPI
-    # В проде будет запрос на: requests.get("http://localhost:8000/health")
-    backend_status = "Online"
-    neo4j_status = "Online"
-    chromadb_status = "Online"
+    # Запрос реального статуса здоровья нод через FastAPI
+    backend_status = "Offline"
+    neo4j_status = "Offline"
+    chromadb_status = "Offline"
+    
+    try:
+        res = requests.get(f"{backend_url}/health", timeout=2)
+        if res.status_code == 200:
+            health_data = res.json()
+            backend_status = "Online" if health_data.get("status") == "healthy" or health_data.get("status") == "degraded" else "Offline"
+            neo4j_status = "Online" if "error" not in health_data.get("neo4j", "") else "Offline"
+            chromadb_status = "Online" if "error" not in health_data.get("chromadb", "") else "Offline"
+    except Exception:
+        pass
     
     def render_status(name, status):
         badge_class = "status-online" if status == "Online" else "status-offline"
@@ -103,6 +116,10 @@ with st.sidebar:
     render_status("Node 1: Neo4j (N200)", neo4j_status)
     render_status("Node 2: Chroma (N150)", chromadb_status)
     
+    # Кнопка ручной проверки
+    if st.button("📡 Проверить пинг до бэкенда"):
+        st.rerun()
+        
     st.markdown("---")
     st.markdown("💡 *Кластер объединен Mesh-сетью Tailscale с шифрованием трафика.*")
 
@@ -136,75 +153,103 @@ with tabs[0]:
     if query:
         st.chat_message("user").write(query)
         
-        # Эмуляция отправки на FastAPI backend
-        with st.spinner("Оркестратор собирает граф знаний и векторные чанки..."):
-            # Для демонстрации структуры создаем интерактивный ответ
-            # В проде: response = requests.post("http://localhost:8000/query", json={...})
-            
-            st.markdown("#### 📝 Сгенерированный ответ (YandexGPT Pro)")
-            
-            # В зависимости от вопроса выводим красивую демонстрацию
-            if "обессоливание" in query.lower() or "сухой остаток" in query.lower():
-                answer_md = """
-                Для исходной воды с содержанием сульфатов, хлоридов, Ca, Mg, Na на уровне **200–300 мг/л** и требуемым сухим остатком **≤1000 мг/дм³** подходят следующие комбинированные методы:
-                
-                1. **Обратный осмос (RO):** Обеспечивает селективность до 98-99% по одновалентным и двухвалентным ионам.
-                2. **Ультрафильтрация + Электродиализ:** Оптимально для селективного извлечения солей кальция и магния без жесткого мембранного концентрирования.
-                
-                ⚠️ **Зона разногласий в данных:**
-                * В отчете *[Гипроникель_2022_Водоотведение.pdf, стр. 14]* указывается, что мембраны обратного осмоса забиваются при концентрации Ca > 250 мг/л без предварительного умягчения.
-                * В статье *[Вестник_Кольской_ГМК_2024.pdf, стр. 3]* утверждается, что ингибиторы осадкообразования позволяют работать при Ca до 350 мг/л.
-                """
-                st.write(answer_md)
-            elif "католит" in query.lower() or "электроэкстракц" in query.lower():
-                answer_md = """
-                При электроэкстракции никеля используются следующие методы циркуляции католита:
-                
-                * **Двухконтурная циркуляция:** Подача свежего католита непосредственно в прикатолидное пространство.
-                * **Оптимальная скорость потока:** По мировым стандартам *[Outokumpu_Electrowinning_Specs.pdf, стр. 42]*, оптимальная линейная скорость составляет **0.12–0.15 м/с** для предотвращения дендритообразования.
-                """
-                st.write(answer_md)
-            else:
-                st.write("Найдена онтологическая сеть и векторные совпадения. Данные загружены.")
-                
-            st.markdown("---")
-            st.markdown("#### 🔗 Источники и цитаты (Explainability)")
-            col_src1, col_src2 = st.columns(2)
-            col_src1.markdown("""
-                <div class='glass-card'>
-                    <strong>📄 Гипроникель_2022_Водоотведение.pdf</strong><br>
-                    <small>Раздел: Очистка стоков. Стр 14. Концентрация кальция и сульфатов.</small>
-                </div>
-            """, unsafe_allow_html=True)
-            col_src2.markdown("""
-                <div class='glass-card'>
-                    <strong>📄 Вестник_Кольской_ГМК_2024.pdf</strong><br>
-                    <small>Статья: Реагентное умягчение шахтных вод. Стр 3.</small>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            st.markdown("---")
-            st.markdown("#### 📊 Локальный граф знаний (Neo4j Context)")
-            
-            # Генерация демонстрационного графа через PyVis
-            net = Network(height="400px", width="100%", bgcolor="#0e1117", font_color="white")
-            net.add_node(1, label="Обессоливание воды", color="#00f2fe", size=25)
-            net.add_node(2, label="Обратный Осмос", color="#4facfe", size=20)
-            net.add_node(3, label="Сухой Остаток <= 1000 мг/л", color="#e74c3c", size=15)
-            net.add_node(4, label="Кальций (Ca)", color="#9b59b6", size=15)
-            net.add_edge(1, 2, label="Использует метод")
-            net.add_edge(2, 3, label="Ограничение")
-            net.add_edge(1, 4, label="Параметр очистки")
-            
-            net.save_graph("temp_graph.html")
-            
-            with open("temp_graph.html", "r", encoding="utf-8") as f:
-                html_data = f.read()
-            components.html(html_data, height=420)
-            
-            # Удаляем временный файл
-            if os.path.exists("temp_graph.html"):
-                os.remove("temp_graph.html")
+        # Подготовка фильтров для отправки на FastAPI backend
+        payload = {
+            "query": query,
+            "geography": "all" if geography == "Все регионы" else ("RU" if geography == "Только РФ" else "GLOBAL"),
+            "year_from": year_from,
+            "role": "researcher" if "Исследователь" in role else "partner"
+        }
+        
+        with st.spinner("Оркестратор собирает граф знаний и векторные чанки по сети Tailscale..."):
+            try:
+                response = requests.post(f"{backend_url}/query", json=payload, timeout=60)
+                if response.status_code == 200:
+                    result = response.json()
+                    
+                    st.markdown("#### 📝 Сгенерированный ответ (YandexGPT Pro)")
+                    st.write(result["answer"])
+                    
+                    st.markdown("---")
+                    st.markdown("#### 🔗 Источники и цитаты (Explainability)")
+                    
+                    sources = result.get("sources", [])
+                    if sources:
+                        # Рендерим карточки источников
+                        cols_src = st.columns(min(len(sources), 3))
+                        for idx, src in enumerate(sources[:3]):
+                            col_idx = idx % 3
+                            src_meta = src.get("metadata", {})
+                            cols_src[col_idx].markdown(f"""
+                                <div class='glass-card'>
+                                    <strong>📄 {src_meta.get('source', 'Неизвестный файл')}</strong><br>
+                                    <small>Год: {src_meta.get('year', 'Не указан')}, Регион: {src_meta.get('geography', 'Все')}</small><br>
+                                    <p style="font-size:0.85rem; color:#8892b0; margin-top:8px;">"{src.get('text', '')[:140]}..."</p>
+                                </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.info("Векторные источники не найдены в коллекции ChromaDB.")
+                    
+                    st.markdown("---")
+                    st.markdown("#### 📊 Локальный граф знаний (Neo4j Subgraph)")
+                    
+                    subgraph = result.get("subgraph", [])
+                    if subgraph:
+                        # Цветовая гамма для разных типов сущностей
+                        color_map = {
+                            "Experiment": "#00f2fe",
+                            "Material": "#2ecc71",
+                            "Condition": "#f1c40f",
+                            "Property": "#e74c3c",
+                            "Expert": "#e67e22",
+                            "Equipment": "#9b59b6",
+                            "Publication": "#34495e",
+                            "Facility": "#1abc9c",
+                            "Parameter": "#f1c40f"
+                        }
+                        
+                        net = Network(height="450px", width="100%", bgcolor="#0e1117", font_color="white")
+                        
+                        nodes_added = set()
+                        for edge in subgraph:
+                            src_name = edge["source"]
+                            src_type = edge["source_type"]
+                            tgt_name = edge["target"]
+                            tgt_type = edge["target_type"]
+                            rel = edge["relationship"]
+                            
+                            # Добавляем исходный узел
+                            if src_name not in nodes_added:
+                                color = color_map.get(src_type, "#bdc3c7")
+                                net.add_node(src_name, label=src_name, color=color, size=20, title=f"Тип: {src_type}")
+                                nodes_added.add(src_name)
+                                
+                            # Добавляем целевой узел
+                            if tgt_name not in nodes_added:
+                                color = color_map.get(tgt_type, "#bdc3c7")
+                                net.add_node(tgt_name, label=tgt_name, color=color, size=20, title=f"Тип: {tgt_type}")
+                                nodes_added.add(tgt_name)
+                                
+                            # Добавляем ребро
+                            net.add_edge(src_name, tgt_name, label=rel)
+                            
+                        # Сохраняем и рендерим граф
+                        graph_html_path = "temp_query_graph.html"
+                        net.save_graph(graph_html_path)
+                        
+                        with open(graph_html_path, "r", encoding="utf-8") as f:
+                            html_data = f.read()
+                        components.html(html_data, height=470)
+                        
+                        # Удаляем временный файл
+                        if os.path.exists(graph_html_path):
+                            os.remove(graph_html_path)
+                    else:
+                        st.info("Релевантные связи в графе знаний Neo4j не обнаружены.")
+                else:
+                    st.error(f"Ошибка бэкенда FastAPI: {response.text}")
+            except Exception as e:
+                st.error(f"Не удалось отправить запрос к бэкенду по Tailscale: {e}")
 
 with tabs[1]:
     st.markdown("### 📊 Радар Белых Пятен (Gap Analysis)")
