@@ -1,6 +1,7 @@
 import os
 import re
 import uuid
+import time
 from app.services.parser import parser
 from app.services.yandex_ai import yandex_ai
 from app.db.chroma_client import chroma_client
@@ -81,6 +82,9 @@ def process_file(file_path: str):
                             metadata=metadata
                         )
                         triplets_processed += 1
+                
+                # Задержка для предотвращения лимитов 429
+                time.sleep(0.15)
             except Exception as e:
                 print(f"    ⚠️ Ошибка обработки чанка {idx}: {e}")
                 
@@ -114,6 +118,9 @@ def process_file(file_path: str):
                             metadata=metadata
                         )
                         triplets_processed += 1
+                
+                # Задержка для предотвращения лимитов 429
+                time.sleep(0.15)
             except Exception as e:
                 print(f"    ⚠️ Ошибка обработки факта {idx}: {e}")
                 
@@ -141,6 +148,12 @@ def main():
         print(f"❌ Ошибка подключения к базам данных перед импортом: {e}")
         return
         
+    # Автоматическая очистка графа Neo4j перед новым импортом
+    try:
+        neo4j_client.clear_database()
+    except Exception as e:
+        print(f"⚠️ Не удалось автоматически очистить Neo4j: {e}")
+        
     for file in files:
         process_file(os.path.join(RAW_DATA_DIR, file))
         
@@ -148,3 +161,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

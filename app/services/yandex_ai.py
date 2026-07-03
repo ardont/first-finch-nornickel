@@ -1,23 +1,46 @@
 import requests
 import json
 import re
+import time
+from functools import wraps
 from app.core.config import settings
+
+def retry_on_429(max_retries=3, delay=1.5):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    # Проверяем наличие ошибки 429 или Too Many Requests
+                    if "429" in str(e) or "too many requests" in str(e).lower():
+                        sleep_time = delay * (2 ** attempt)
+                        print(f"⚠️ Получен лимит запросов (429). Ожидание {sleep_time}с перед повторной попыткой...")
+                        time.sleep(sleep_time)
+                    else:
+                        raise e
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
 
 ONTOLOGY_SYSTEM_PROMPT = """
 Ты — модуль извлечения онтологии знаний для научно-технического отдела Норникеля.
 Проанализируй научно-технический текст и выдели строго структурированные сущности (вершины графа) и их взаимосвязи (ребра).
 
+ПРАВИЛО ОГРАНИЧЕНИЯ: Извлеки не более 10 самых главных и точных связей из текста. Не пытайся извлечь всё. Главное — строго валидный закрытый JSON-массив.
+
 Выводи результат ТОЛЬКО в формате JSON-списка объектов с полями:
 - "source": Название исходной сущности (нормализованное, в именительном падеже)
-- "source_type": Тип исходной сущности (одно из: Material, Process, Equipment, Expert, Facility, Parameter)
+- "source_type": Тип исходной сущности (одно из: Experiment, Material, Condition, Property, Publication, Facility, Expert, Equipment)
 - "target": Название связанной сущности (нормализованное, в именительном падеже)
-- "target_type": Тип связанной сущности (одно из: Material, Process, Equipment, Expert, Facility, Parameter)
-- "relationship": Тип связи (одно из: USES, PRODUCES, CONTRADICTS, LOCATED_IN, WORKS_ON, MEASURES, CONTAINS)
+- "target_type": Тип связанной сущности (одно из: Experiment, Material, Condition, Property, Publication, Facility, Expert, Equipment)
+- "relationship": Тип связи (одно из: USES_MATERIAL, OPERATES_AT_CONDITION, PRODUCES_OUTPUT, DESCRIBED_IN, VALIDATED_BY, CONFLICTS)
 
 Пример вывода:
 [
-  {"source": "Обратный осмос", "source_type": "Process", "target": "Сухой остаток", "target_type": "Parameter", "relationship": "MEASURES"},
-  {"source": "Электроэкстракция", "source_type": "Process", "target": "Католит", "target_type": "Material", "relationship": "USES"}
+  {"source": "Эксперимент 1", "source_type": "Experiment", "target": "Сульфаты", "target_type": "Material", "relationship": "USES_MATERIAL"},
+  {"source": "Электроэкстракция", "source_type": "Experiment", "target": "Католит", "target_type": "Material", "relationship": "USES_MATERIAL"}
 ]
 """
 
@@ -35,6 +58,7 @@ class YandexAIService:
             "Content-Type": "application/json"
         }
 
+    @retry_on_429(max_retries=3, delay=1.5)
     def get_embedding(self, text: str, model_type: str = "text-search-doc") -> list[float]:
         """
         model_type: 'text-search-doc' или 'text-search-query'
@@ -47,6 +71,7 @@ class YandexAIService:
         response.raise_for_status()
         return response.json()["embedding"]
 
+    @retry_on_429(max_retries=3, delay=2.0)
     def generate_completion(self, system_prompt: str, user_prompt: str, model: str = "yandexgpt", temperature: float = 0.3) -> str:
         """
         model: 'yandexgpt' (Pro) или 'yandexgpt-lite'
@@ -93,4 +118,5 @@ class YandexAIService:
             return []
 
 yandex_ai = YandexAIService()
+
 

@@ -16,7 +16,7 @@ SYNONYMS_MAP = {
     "FLUIDIZED BED FURNACE": "Печь взвешенной плавки"
 }
 
-ALLOWED_RELATIONS = {"USES", "PRODUCES", "CONTRADICTS", "LOCATED_IN", "WORKS_ON", "MEASURES", "CONTAINS", "RELATED_TO"}
+ALLOWED_RELATIONS = {"USES_MATERIAL", "OPERATES_AT_CONDITION", "PRODUCES_OUTPUT", "DESCRIBED_IN", "VALIDATED_BY", "CONFLICTS", "RELATED_TO"}
 
 class Neo4jClient:
     def __init__(self):
@@ -24,6 +24,13 @@ class Neo4jClient:
         self.user = settings.NEO4J_USER
         self.password = settings.NEO4J_PASSWORD
         self.driver = None
+
+    def clear_database(self):
+        driver = self.connect()
+        query = "MATCH (n) DETACH DELETE n"
+        with driver.session() as session:
+            session.run(query)
+        print("🧹 Граф Neo4j успешно очищен.")
 
     def connect(self):
         if not self.driver:
