@@ -1,0 +1,19 @@
+version: '3.8'
+services:
+  neo4j:
+    image: neo4j:5-community
+    container_name: nornickel_neo4j
+    restart: always
+    ports:
+      - "0.0.0.0:7474:7474" # HTTP UI
+      - "0.0.0.0:7687:7687" # Bolt Protocol
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-hackathon2026password}
+      NEO4J_server_memory_heap_initial__size: 512M
+      NEO4J_server_memory_heap_max__size: 1500M
+      NEO4J_server_memory_pagecache_size: 512M
+      NEO4J_dbms_connector_bolt_listen__address: ":7687"
+    volumes:
+      - neo4j_data:/data
+volumes:
+  neo4j_data:

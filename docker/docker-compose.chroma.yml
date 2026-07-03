@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: nornickel_chroma
+    restart: always
+    ports:
+      - "0.0.0.0:8000:8000"
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma/
+      - ANONYMIZED_TELEMETRY=False
+    volumes:
+      - chroma_data:/chroma/chroma/
+volumes:
+  chroma_data:
