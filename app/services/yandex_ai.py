@@ -103,7 +103,8 @@ class YandexAIService:
                     }
                 ]
             },
-            "taskType": task_type
+            "taskType": task_type,
+            "outputDimensionality": 256
         }
         response = requests.post(url, json=payload, headers=headers, timeout=10)
         response.raise_for_status()
