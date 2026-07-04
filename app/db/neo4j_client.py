@@ -123,5 +123,90 @@ class Neo4jClient:
         except Exception as e:
             print(f"Ошибка при сохранении триплета: {e}")
 
+    def add_graph_data(self, graph_data: dict, metadata: dict):
+        """
+        Импортирует данные в формате:
+        {
+            "nodes": [ {"id": ..., "type": ..., "properties": {"name": ..., ...}} ],
+            "relationships": [ {"source": ..., "target": ..., "type": ..., "properties": {...}} ]
+        }
+        """
+        if not graph_data or "nodes" not in graph_data or "relationships" not in graph_data:
+            return
+            
+        self.connect()
+        
+        # Сначала создаем/обновляем узлы и строим карту id -> name/type
+        node_map = {}
+        for node in graph_data["nodes"]:
+            node_id = node.get("id")
+            node_type = node.get("type", "Entity")
+            properties = node.get("properties", {})
+            name = properties.get("name")
+            if not node_id or not name:
+                continue
+                
+            # Нормализуем имя
+            name = self.normalize_name(name)
+            node_map[node_id] = {"name": name, "type": node_type}
+            
+            # Защита метки типа
+            clean_type = "".join([c for c in node_type if c.isalnum()]) or "Entity"
+            
+            # Формируем свойства узла
+            query_props = {"name": name, "type": node_type}
+            for k, v in properties.items():
+                if k != "name":
+                    query_props[k] = v
+                    
+            fallback_query = f"""
+            MERGE (e:Entity {{name: $name}})
+            ON CREATE SET e.type = $type
+            SET e += $properties
+            RETURN e
+            """
+            
+            try:
+                with self.driver.session() as session:
+                    session.run(fallback_query, name=name, type=node_type, properties=query_props)
+            except Exception as e:
+                print(f"Ошибка сохранения узла {name}: {e}")
+
+        # Затем создаем связи
+        for rel in graph_data["relationships"]:
+            source_id = rel.get("source")
+            target_id = rel.get("target")
+            rel_type = rel.get("type", "RELATED_TO").strip().upper()
+            properties = rel.get("properties", {})
+            
+            if source_id not in node_map or target_id not in node_map:
+                continue
+                
+            source_info = node_map[source_id]
+            target_info = node_map[target_id]
+            
+            if rel_type not in ALLOWED_RELATIONS:
+                rel_type = "RELATED_TO"
+                
+            # Добавляем метаданные файла и года к свойствам связи
+            rel_props = {
+                "source_file": metadata.get("source", "unknown"),
+                "year": int(metadata.get("year", 2023))
+            }
+            for k, v in properties.items():
+                rel_props[k] = v
+                
+            query = f"""
+            MATCH (s:Entity {{name: $source_name}}), (t:Entity {{name: $target_name}})
+            MERGE (s)-[r:{rel_type}]->(t)
+            SET r += $properties
+            RETURN r
+            """
+            try:
+                with self.driver.session() as session:
+                    session.run(query, source_name=source_info["name"], target_name=target_info["name"], properties=rel_props)
+            except Exception as e:
+                print(f"Ошибка сохранения связи {rel_type}: {e}")
+
 neo4j_client = Neo4jClient()
 

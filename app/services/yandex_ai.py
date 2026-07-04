@@ -28,20 +28,31 @@ ONTOLOGY_SYSTEM_PROMPT = """
 Ты — модуль извлечения онтологии знаний для научно-технического отдела Норникеля.
 Проанализируй научно-технический текст и выдели строго структурированные сущности (вершины графа) и их взаимосвязи (ребра).
 
-ПРАВИЛО ОГРАНИЧЕНИЯ: Извлеки не более 10 самых главных и точных связей из текста. Не пытайся извлечь всё. Главное — строго валидный закрытый JSON-массив.
+Выводи результат в формате JSON-объекта со следующей структурой:
+{
+  "nodes": [
+    {
+      "id": "уникальный_id_в_пределах_текста",
+      "type": "Тип сущности (одно из: Experiment, Material, Condition, Property, Publication, Facility, Expert, Equipment)",
+      "properties": {
+        "name": "Название сущности (нормализованное, в именительном падеже)",
+        ... другие дополнительные свойства, обнаруженные в тексте (например: manufacturer, role, date, result_status и т.д.)
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "source": "id_исходного_узла",
+      "target": "id_целевого_узла",
+      "type": "Тип связи (одно из: USES_MATERIAL, OPERATES_AT_CONDITION, PRODUCES_OUTPUT, DESCRIBED_IN, VALIDATED_BY, CONFLICTS, RELATED_TO)",
+      "properties": {
+        ... дополнительные свойства связи, обнаруженные в тексте (например: confidence и т.д.)
+      }
+    }
+  ]
+}
 
-Выводи результат ТОЛЬКО в формате JSON-списка объектов с полями:
-- "source": Название исходной сущности (нормализованное, в именительном падеже)
-- "source_type": Тип исходной сущности (одно из: Experiment, Material, Condition, Property, Publication, Facility, Expert, Equipment)
-- "target": Название связанной сущности (нормализованное, в именительном падеже)
-- "target_type": Тип связанной сущности (одно из: Experiment, Material, Condition, Property, Publication, Facility, Expert, Equipment)
-- "relationship": Тип связи (одно из: USES_MATERIAL, OPERATES_AT_CONDITION, PRODUCES_OUTPUT, DESCRIBED_IN, VALIDATED_BY, CONFLICTS)
-
-Пример вывода:
-[
-  {"source": "Эксперимент 1", "source_type": "Experiment", "target": "Сульфаты", "target_type": "Material", "relationship": "USES_MATERIAL"},
-  {"source": "Электроэкстракция", "source_type": "Experiment", "target": "Католит", "target_type": "Material", "relationship": "USES_MATERIAL"}
-]
+ПРАВИЛО ОГРАНИЧЕНИЯ: Извлеки не более 10 самых главных и точных связей из текста. Не пытайся извлечь всё.
 """
 
 class YandexAIService:
@@ -133,27 +144,49 @@ class YandexAIService:
         Возвращает список извлеченных связей в виде словарей.
         """
         schema = {
-            "type": "ARRAY",
-            "items": {
-                "type": "OBJECT",
-                "properties": {
-                    "source": {"type": "STRING"},
-                    "source_type": {
-                        "type": "STRING",
-                        "enum": ["Experiment", "Material", "Condition", "Property", "Publication", "Facility", "Expert", "Equipment"]
-                    },
-                    "target": {"type": "STRING"},
-                    "target_type": {
-                        "type": "STRING",
-                        "enum": ["Experiment", "Material", "Condition", "Property", "Publication", "Facility", "Expert", "Equipment"]
-                    },
-                    "relationship": {
-                        "type": "STRING",
-                        "enum": ["USES_MATERIAL", "OPERATES_AT_CONDITION", "PRODUCES_OUTPUT", "DESCRIBED_IN", "VALIDATED_BY", "CONFLICTS", "RELATED_TO"]
+            "type": "OBJECT",
+            "properties": {
+                "nodes": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "id": {"type": "STRING"},
+                            "type": {
+                                "type": "STRING",
+                                "enum": ["Experiment", "Material", "Condition", "Property", "Publication", "Facility", "Expert", "Equipment"]
+                            },
+                            "properties": {
+                                "type": "OBJECT",
+                                "properties": {
+                                    "name": {"type": "STRING"}
+                                },
+                                "required": ["name"]
+                            }
+                        },
+                        "required": ["id", "type", "properties"]
                     }
                 },
-                "required": ["source", "source_type", "target", "target_type", "relationship"]
-            }
+                "relationships": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "source": {"type": "STRING"},
+                            "target": {"type": "STRING"},
+                            "type": {
+                                "type": "STRING",
+                                "enum": ["USES_MATERIAL", "OPERATES_AT_CONDITION", "PRODUCES_OUTPUT", "DESCRIBED_IN", "VALIDATED_BY", "CONFLICTS", "RELATED_TO"]
+                            },
+                            "properties": {
+                                "type": "OBJECT"
+                            }
+                        },
+                        "required": ["source", "target", "type"]
+                    }
+                }
+            },
+            "required": ["nodes", "relationships"]
         }
         
         try:
@@ -176,7 +209,7 @@ class YandexAIService:
             return json.loads(cleaned)
         except Exception as e:
             print(f"Ошибка при извлечении онтологии из чанка: {e}")
-            return []
+            return {}
 
 yandex_ai = YandexAIService()
 

@@ -73,18 +73,10 @@ def process_file(file_path: str):
                 chunks_processed += 1
                 
                 # Извлечение онтологии и запись в Neo4j
-                triplets = yandex_ai.extract_ontology(chunk)
-                for t in triplets:
-                    if "source" in t and "target" in t and "relationship" in t:
-                        neo4j_client.add_triplet(
-                            source=t["source"],
-                            source_type=t.get("source_type", "Entity"),
-                            target=t["target"],
-                            target_type=t.get("target_type", "Entity"),
-                            relationship=t["relationship"],
-                            metadata=metadata
-                        )
-                        triplets_processed += 1
+                graph_data = yandex_ai.extract_ontology(chunk)
+                if graph_data and "nodes" in graph_data and "relationships" in graph_data:
+                    neo4j_client.add_graph_data(graph_data, metadata)
+                    triplets_processed += len(graph_data["relationships"])
                 
                 # Задержка для предотвращения лимитов 429
                 time.sleep(0.15)
@@ -109,18 +101,10 @@ def process_file(file_path: str):
                 chunks_processed += 1
                 
                 # Отправляем факт в LLM для извлечения триплетов
-                triplets = yandex_ai.extract_ontology(fact)
-                for t in triplets:
-                    if "source" in t and "target" in t and "relationship" in t:
-                        neo4j_client.add_triplet(
-                            source=t["source"],
-                            source_type=t.get("source_type", "Entity"),
-                            target=t["target"],
-                            target_type=t.get("target_type", "Entity"),
-                            relationship=t["relationship"],
-                            metadata=metadata
-                        )
-                        triplets_processed += 1
+                graph_data = yandex_ai.extract_ontology(fact)
+                if graph_data and "nodes" in graph_data and "relationships" in graph_data:
+                    neo4j_client.add_graph_data(graph_data, metadata)
+                    triplets_processed += len(graph_data["relationships"])
                 
                 # Задержка для предотвращения лимитов 429
                 time.sleep(0.15)
