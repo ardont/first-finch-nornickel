@@ -47,40 +47,6 @@ ONTOLOGY_SYSTEM_PROMPT = """
 class YandexAIService:
     def __init__(self):
         self.api_key = settings.YANDEX_API_KEY
-        self.folder_id = settings.YANDEX_FOLDER_ID
-        self.embedding_url = "https://llm.api.cloud.yandex.net/foundationModels/v1/textEmbedding"
-        self.completion_url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
-        self.iam_token = None
-        self.iam_expires_at = 0
-
-    def get_iam_token(self) -> str:
-        # Проверяем, есть ли действующий токен
-        if self.iam_token and time.time() < self.iam_expires_at - 60:
-            return self.iam_token
-            
-        # Запрашиваем новый IAM-токен из OAuth-токена
-        url = "https://iam.api.cloud.yandex.net/iam/v1/tokens"
-        payload = {"yandexPassportOauthToken": self.api_key}
-        response = requests.post(url, json=payload, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        self.iam_token = data["iamToken"]
-        self.iam_expires_at = time.time() + 11 * 3600  # IAM токен живет 12 часов
-        return self.iam_token
-
-    def get_headers(self):
-        # Если это OAuth-токен (обычно начинается с y0_ или AQ.A...)
-        if self.api_key.startswith("AQ.") or self.api_key.startswith("y0_"):
-            iam_token = self.get_iam_token()
-            auth_header = f"Bearer {iam_token}"
-        else:
-            auth_header = f"Api-Key {self.api_key}"
-
-        return {
-            "Authorization": auth_header,
-            "x-folder-id": self.folder_id,
-            "Content-Type": "application/json"
-        }
 
     @retry_on_429(max_retries=3, delay=1.5)
     def get_embedding(self, text: str, model_type: str = "text-embeddings-v2-doc") -> list[float]:
@@ -111,36 +77,60 @@ class YandexAIService:
         return response.json()["embedding"]["values"]
 
     @retry_on_429(max_retries=3, delay=2.0)
-    def generate_completion(self, system_prompt: str, user_prompt: str, model: str = "yandexgpt", temperature: float = 0.3) -> str:
+    def generate_completion(self, system_prompt: str, user_prompt: str, model: str = "gemini-2.5-flash", temperature: float = 0.3) -> str:
         """
-        model: 'yandexgpt' (Pro) или 'yandexgpt-lite'
+        model: 'gemini-2.5-flash'
         """
-        payload = {
-            "modelUri": f"gpt://{self.folder_id}/{model}/latest",
-            "completionOptions": {
-                "stream": False,
-                "temperature": temperature,
-                "maxTokens": "2000"
-            },
-            "messages": [
-                {"role": "system", "text": system_prompt},
-                {"role": "user", "text": user_prompt}
-            ]
+        # Перенаправляем yandexgpt на gemini-2.5-flash
+        if "yandexgpt" in model or "gpt" in model:
+            model = "gemini-2.5-flash"
+            
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        headers = {
+            "x-goog-api-key": self.api_key,
+            "Content-Type": "application/json"
         }
-        response = requests.post(self.completion_url, json=payload, headers=self.get_headers(), timeout=60)
+        payload = {
+            "system_instruction": {
+                "parts": [
+                    {
+                        "text": system_prompt
+                    }
+                ]
+            },
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": user_prompt
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": 2000
+            }
+        }
+        
+        # Если запрашивается извлечение онтологии, заставляем модель отдавать валидный JSON
+        if "json" in system_prompt.lower() or "json" in user_prompt.lower():
+            payload["generationConfig"]["responseMimeType"] = "application/json"
+            
+        response = requests.post(url, json=payload, headers=headers, timeout=60)
         response.raise_for_status()
-        return response.json()["result"]["alternatives"][0]["message"]["text"]
+        return response.json()["candidates"][0]["content"]["parts"][0]["text"]
 
     def extract_ontology(self, chunk_text: str) -> list[dict]:
         """
-        Отправляет чанк в YandexGPT Lite для извлечения триплетов онтологии.
+        Отправляет чанк в Gemini для извлечения триплетов онтологии.
         Возвращает список извлеченных связей в виде словарей.
         """
         try:
             raw_response = self.generate_completion(
                 system_prompt=ONTOLOGY_SYSTEM_PROMPT,
                 user_prompt=f"Извлеки онтологию из следующего текста:\n\n{chunk_text}",
-                model="yandexgpt-lite",
+                model="gemini-2.5-flash",
                 temperature=0.1
             )
             
