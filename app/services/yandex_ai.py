@@ -59,9 +59,9 @@ class YandexAIService:
         }
 
     @retry_on_429(max_retries=3, delay=1.5)
-    def get_embedding(self, text: str, model_type: str = "text-search-doc") -> list[float]:
+    def get_embedding(self, text: str, model_type: str = "text-embeddings-v2-doc") -> list[float]:
         """
-        model_type: 'text-search-doc' или 'text-search-query'
+        model_type: 'text-embeddings-v2-doc' или 'text-embeddings-v2-query'
         """
         payload = {
             "modelUri": f"emb://{self.folder_id}/{model_type}/latest",

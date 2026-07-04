@@ -27,7 +27,7 @@ try:
     url = "https://llm.api.cloud.yandex.net/foundationModels/v1/textEmbedding"
     headers = {"Authorization": f"Api-Key {YANDEX_API_KEY}", "x-folder-id": YANDEX_FOLDER_ID}
     payload = {
-        "modelUri": f"emb://{YANDEX_FOLDER_ID}/text-search-doc/latest",
+        "modelUri": f"emb://{YANDEX_FOLDER_ID}/text-embeddings-v2-doc/latest",
         "text": "Тестовый запрос Норникель"
     }
     resp = requests.post(url, json=payload, headers=headers, timeout=5)

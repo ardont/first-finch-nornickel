@@ -23,7 +23,7 @@ class RAGEngine:
         """
         try:
             # Сначала генерируем эмбеддинг запроса
-            query_vector = yandex_ai.get_embedding(query, "text-search-query")
+            query_vector = yandex_ai.get_embedding(query, "text-embeddings-v2-query")
             # Выполняем запрос к ChromaDB
             results = chroma_client.query_collection(
                 collection_name=self.collection_name,
