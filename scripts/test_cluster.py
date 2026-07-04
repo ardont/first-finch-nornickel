@@ -23,14 +23,14 @@ print("==================================================")
 print("🚀 ЗАПУСК СКВОЗНОЙ ПРОВЕРКИ КЛАСТЕРА FIRST FINCH")
 print("==================================================\n")
 
-# 1. ПРОВЕРКА YANDEX AI STUDIO (Эмбеддинги)
-print("[1/3] Проверка Yandex AI Studio (Embeddings API)...")
+# 1. ПРОВЕРКА GOOGLE AI STUDIO (Эмбеддинги)
+print("[1/3] Проверка Google AI Studio (Gemini Embedding 2)...")
 try:
     embedding = yandex_ai.get_embedding("Тестовый запрос Норникель")
     vec_len = len(embedding)
     print(f"  ✅ Успешно! Облако вернуло вектор размером: {vec_len}\n")
 except Exception as e:
-    print(f"  ❌ Ошибка подключения к Yandex AI: {e}")
+    print(f"  ❌ Ошибка подключения к Google AI: {e}")
     print("--------------------------------------------------")
     traceback.print_exc()
     print("--------------------------------------------------\n")

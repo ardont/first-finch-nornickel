@@ -85,15 +85,29 @@ class YandexAIService:
     @retry_on_429(max_retries=3, delay=1.5)
     def get_embedding(self, text: str, model_type: str = "text-embeddings-v2-doc") -> list[float]:
         """
-        model_type: 'text-embeddings-v2-doc' или 'text-embeddings-v2-query'
+        model_type: указывает на документ или запрос.
         """
-        payload = {
-            "modelUri": f"emb://{self.folder_id}/{model_type}/latest",
-            "text": text
+        # Определяем taskType для Google Gemini Embedding API
+        task_type = "RETRIEVAL_QUERY" if "query" in model_type else "RETRIEVAL_DOCUMENT"
+        
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent"
+        headers = {
+            "x-goog-api-key": self.api_key,
+            "Content-Type": "application/json"
         }
-        response = requests.post(self.embedding_url, json=payload, headers=self.get_headers(), timeout=10)
+        payload = {
+            "content": {
+                "parts": [
+                    {
+                        "text": text
+                    }
+                ]
+            },
+            "taskType": task_type
+        }
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
         response.raise_for_status()
-        return response.json()["embedding"]
+        return response.json()["embedding"]["values"]
 
     @retry_on_429(max_retries=3, delay=2.0)
     def generate_completion(self, system_prompt: str, user_prompt: str, model: str = "yandexgpt", temperature: float = 0.3) -> str:
