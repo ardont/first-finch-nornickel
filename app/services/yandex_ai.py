@@ -50,10 +50,34 @@ class YandexAIService:
         self.folder_id = settings.YANDEX_FOLDER_ID
         self.embedding_url = "https://llm.api.cloud.yandex.net/foundationModels/v1/textEmbedding"
         self.completion_url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+        self.iam_token = None
+        self.iam_expires_at = 0
+
+    def get_iam_token(self) -> str:
+        # Проверяем, есть ли действующий токен
+        if self.iam_token and time.time() < self.iam_expires_at - 60:
+            return self.iam_token
+            
+        # Запрашиваем новый IAM-токен из OAuth-токена
+        url = "https://iam.api.cloud.yandex.net/iam/v1/tokens"
+        payload = {"yandexPassportOauthToken": self.api_key}
+        response = requests.post(url, json=payload, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        self.iam_token = data["iamToken"]
+        self.iam_expires_at = time.time() + 11 * 3600  # IAM токен живет 12 часов
+        return self.iam_token
 
     def get_headers(self):
+        # Если это OAuth-токен (обычно начинается с y0_ или AQ.A...)
+        if self.api_key.startswith("AQ.") or self.api_key.startswith("y0_"):
+            iam_token = self.get_iam_token()
+            auth_header = f"Bearer {iam_token}"
+        else:
+            auth_header = f"Api-Key {self.api_key}"
+
         return {
-            "Authorization": f"Api-Key {self.api_key}",
+            "Authorization": auth_header,
             "x-folder-id": self.folder_id,
             "Content-Type": "application/json"
         }

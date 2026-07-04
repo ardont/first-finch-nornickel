@@ -5,6 +5,7 @@ import requests
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 import chromadb
+from app.services.yandex_ai import yandex_ai
 
 load_dotenv()
 
@@ -24,15 +25,8 @@ print("==================================================\n")
 # 1. ПРОВЕРКА YANDEX AI STUDIO (Эмбеддинги)
 print("[1/3] Проверка Yandex AI Studio (Embeddings API)...")
 try:
-    url = "https://llm.api.cloud.yandex.net/foundationModels/v1/textEmbedding"
-    headers = {"Authorization": f"Api-Key {YANDEX_API_KEY}", "x-folder-id": YANDEX_FOLDER_ID}
-    payload = {
-        "modelUri": f"emb://{YANDEX_FOLDER_ID}/text-embeddings-v2-doc/latest",
-        "text": "Тестовый запрос Норникель"
-    }
-    resp = requests.post(url, json=payload, headers=headers, timeout=5)
-    resp.raise_for_status()
-    vec_len = len(resp.json()["embedding"])
+    embedding = yandex_ai.get_embedding("Тестовый запрос Норникель")
+    vec_len = len(embedding)
     print(f"  ✅ Успешно! Облако вернуло вектор размером: {vec_len}\n")
 except Exception as e:
     print(f"  ❌ Ошибка подключения к Yandex AI: {e}\n")
