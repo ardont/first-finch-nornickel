@@ -5,6 +5,9 @@ class Settings(BaseSettings):
     YANDEX_API_KEY: str
     YANDEX_FOLDER_ID: str
 
+    # --- Proxy Settings (for bypassing Google AI Studio blocks) ---
+    PROXY: str = None
+
     # --- Tailscale Cluster ---
     MASTER_HOST: str = "100.71.14.9"
 

@@ -47,6 +47,10 @@ ONTOLOGY_SYSTEM_PROMPT = """
 class YandexAIService:
     def __init__(self):
         self.api_key = settings.YANDEX_API_KEY
+        self.proxies = {
+            "http": settings.PROXY,
+            "https": settings.PROXY
+        } if getattr(settings, "PROXY", None) else None
 
     @retry_on_429(max_retries=3, delay=1.5)
     def get_embedding(self, text: str, model_type: str = "text-embeddings-v2-doc") -> list[float]:
@@ -72,12 +76,12 @@ class YandexAIService:
             "taskType": task_type,
             "outputDimensionality": 256
         }
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        response = requests.post(url, json=payload, headers=headers, timeout=10, proxies=self.proxies)
         response.raise_for_status()
         return response.json()["embedding"]["values"]
 
     @retry_on_429(max_retries=3, delay=2.0)
-    def generate_completion(self, system_prompt: str, user_prompt: str, model: str = "gemini-2.5-flash", temperature: float = 0.3) -> str:
+    def generate_completion(self, system_prompt: str, user_prompt: str, model: str = "gemini-2.5-flash", temperature: float = 0.3, response_mime_type: str = None, response_schema: dict = None) -> str:
         """
         model: 'gemini-2.5-flash'
         """
@@ -114,10 +118,12 @@ class YandexAIService:
         }
         
         # Если запрашивается извлечение онтологии, заставляем модель отдавать валидный JSON
-        if "json" in system_prompt.lower() or "json" in user_prompt.lower():
-            payload["generationConfig"]["responseMimeType"] = "application/json"
+        if response_mime_type:
+            payload["generationConfig"]["responseMimeType"] = response_mime_type
+        if response_schema:
+            payload["generationConfig"]["responseSchema"] = response_schema
             
-        response = requests.post(url, json=payload, headers=headers, timeout=60)
+        response = requests.post(url, json=payload, headers=headers, timeout=60, proxies=self.proxies)
         response.raise_for_status()
         return response.json()["candidates"][0]["content"]["parts"][0]["text"]
 
@@ -126,12 +132,38 @@ class YandexAIService:
         Отправляет чанк в Gemini для извлечения триплетов онтологии.
         Возвращает список извлеченных связей в виде словарей.
         """
+        schema = {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "source": {"type": "STRING"},
+                    "source_type": {
+                        "type": "STRING",
+                        "enum": ["Experiment", "Material", "Condition", "Property", "Publication", "Facility", "Expert", "Equipment"]
+                    },
+                    "target": {"type": "STRING"},
+                    "target_type": {
+                        "type": "STRING",
+                        "enum": ["Experiment", "Material", "Condition", "Property", "Publication", "Facility", "Expert", "Equipment"]
+                    },
+                    "relationship": {
+                        "type": "STRING",
+                        "enum": ["USES_MATERIAL", "OPERATES_AT_CONDITION", "PRODUCES_OUTPUT", "DESCRIBED_IN", "VALIDATED_BY", "CONFLICTS", "RELATED_TO"]
+                    }
+                },
+                "required": ["source", "source_type", "target", "target_type", "relationship"]
+            }
+        }
+        
         try:
             raw_response = self.generate_completion(
                 system_prompt=ONTOLOGY_SYSTEM_PROMPT,
                 user_prompt=f"Извлеки онтологию из следующего текста:\n\n{chunk_text}",
                 model="gemini-2.5-flash",
-                temperature=0.1
+                temperature=0.1,
+                response_mime_type="application/json",
+                response_schema=schema
             )
             
             # Очистка разметки ```json ... ``` если LLM её добавила
