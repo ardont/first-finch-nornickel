@@ -161,8 +161,17 @@ def main():
     # Автоматическая очистка графа Neo4j перед новым импортом
     try:
         neo4j_client.clear_database()
+        print("🧹 Граф Neo4j успешно очищен.")
     except Exception as e:
         print(f"⚠️ Не удалось автоматически очистить Neo4j: {e}")
+        
+    # Автоматическое удаление старой коллекции ChromaDB перед импортом
+    try:
+        print(f"🧹 Удаление старой коллекции ChromaDB '{CHROMA_COLLECTION}'...")
+        chroma_client.delete_collection(CHROMA_COLLECTION)
+        print("  ✅ Коллекция ChromaDB успешно удалена (будет воссоздана с новой размерностью).")
+    except Exception as e:
+        print(f"⚠️ Не удалось удалить коллекцию ChromaDB: {e} (возможно, она не существовала)")
         
     for file in files:
         process_file(file)
