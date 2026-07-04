@@ -1,5 +1,6 @@
 import os
 import sys
+import traceback
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import requests
 from dotenv import load_dotenv
@@ -29,7 +30,10 @@ try:
     vec_len = len(embedding)
     print(f"  ✅ Успешно! Облако вернуло вектор размером: {vec_len}\n")
 except Exception as e:
-    print(f"  ❌ Ошибка подключения к Yandex AI: {e}\n")
+    print(f"  ❌ Ошибка подключения к Yandex AI: {e}")
+    print("--------------------------------------------------")
+    traceback.print_exc()
+    print("--------------------------------------------------\n")
 
 # 2. ПРОВЕРКА NEO4J
 print(f"[2/3] Проверка удаленного Neo4j на {NEO4J_HOST}:{NEO4J_PORT}...")
@@ -40,7 +44,10 @@ try:
     print(f"  ✅ Успешно! Ноут Neo4j ({NEO4J_HOST}) готов принимать графы.\n")
     driver.close()
 except Exception as e:
-    print(f"  ❌ Ошибка подключения к Neo4j: {e}\n")
+    print(f"  ❌ Ошибка подключения к Neo4j: {e}")
+    print("--------------------------------------------------")
+    traceback.print_exc()
+    print("--------------------------------------------------\n")
 
 # 3. ПРОВЕРКА CHROMADB
 print(f"[3/3] Проверка удаленного ChromaDB на {CHROMA_HOST}:{CHROMA_PORT}...")
@@ -52,7 +59,10 @@ try:
     client.delete_collection("test_heartbeat")
     print(f"  ✅ Успешно! Ноут ChromaDB ({CHROMA_HOST}) готов принимать векторы (heartbeat: {heartbeat}).\n")
 except Exception as e:
-    print(f"  ❌ Ошибка подключения к ChromaDB: {e}\n")
+    print(f"  ❌ Ошибка подключения к ChromaDB: {e}")
+    print("--------------------------------------------------")
+    traceback.print_exc()
+    print("--------------------------------------------------\n")
 
 print("==================================================")
 print("🏁 ПРОВЕРКА ЗАВЕРШЕНА!")
